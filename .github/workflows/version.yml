@@ -1,0 +1,49 @@
+name: Set Version
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  setversion:
+    name: Invoke Lambda
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::070847265925:role/GH-Actions
+          role-session-name: LambdaInvoke
+          aws-region: us-east-2
+      - name: Invoke lambda
+        run: |
+          APP_NAME=$(node -e "var pkg = require('./package.json'); console.log(pkg.name);")
+          APP_VERSION=$(node -e "var pkg = require('./package.json'); console.log(pkg.version);")
+          ENVIRONMENT=dev
+          aws invoke --function-name set-pilet-version --payload '{"pilet": "$APP_NAME", "version": "$APP_VERSION", "env": "$ENVIRONMENT"}' --cli-binary-format raw-in-base64-out output.json
+  generateManifest:
+    name: Invoke Lambda
+    needs: setversion
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: read
+      contents: read
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::070847265925:role/GH-Actions
+          role-session-name: LambdaInvoke
+          aws-region: us-east-2
+
+      - name: Invoke lambda
+        run: |
+          ENVIRONMENT=dev
+          aws invoke --function-name create-manifest --payload '{"pathPrefix": "https://james.is.cool", "bucket": "cuaf-manifest-bucket", "env": "$ENVIRONMENT"}' --cli-binary-format raw-in-base64-out output.json
